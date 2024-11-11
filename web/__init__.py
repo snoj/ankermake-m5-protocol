@@ -401,6 +401,28 @@ def app_api_ankerctl_file_upload():
                                        f"Unknown error occurred: {err}", "danger")
 
 
+@app.post("/api/ankerctl/file/upload")
+def app_api_ankerctl_file_upload():
+    if request.method != "POST":
+        return web.util.flash_redirect(url_for('app_root'))
+    if "gcode_file" not in request.files:
+        return web.util.flash_redirect(url_for('app_root'), "No file found", "danger")
+    file = request.files["gcode_file"]
+
+    try:
+        web.util.upload_file_to_printer(app, file)
+        return web.util.flash_redirect(url_for('app_root'),
+                                       f"File {file.filename} sent to printer!", "success")
+    except ConnectionError as err:
+        return web.util.flash_redirect(url_for('app_root'),
+                                       "Cannot connect to printer!\n"
+                                       "Please verify that printer is online, and on the same network as ankerctl.\n"
+                                       f"Exception information: {err}", "danger")
+    except Exception as err:
+        return web.util.flash_redirect(url_for('app_root'),
+                                       f"Unknown error occurred: {err}", "danger")
+    
+    
 @app.post("/api/files/local")
 def app_api_files_local():
     """
@@ -507,4 +529,9 @@ def webserver(config, printer_index, host, port, insecure=False, **kwargs):
         app.config.update(kwargs)
         if cfg.printers:
             register_services(app)
+        app.svc.register("pppp", web.service.pppp.PPPPService())
+        if video_supported:
+            app.svc.register("videoqueue", web.service.video.VideoQueue())
+        app.svc.register("mqttqueue", web.service.mqtt.MqttQueue())
+        app.svc.register("filetransfer", web.service.filetransfer.FileTransferService())
         app.run(host=host, port=port)
